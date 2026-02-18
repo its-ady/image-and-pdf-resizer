@@ -1,4 +1,4 @@
-const CACHE_NAME = "resizer-v1";
+const CACHE_NAME = "resizer-v2";
 
 const PRECACHE_URLS = [
   "/",
@@ -42,8 +42,26 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET and cross-origin
-  if (request.method !== "GET" || url.origin !== location.origin) return;
+  // Skip non-GET
+  if (request.method !== "GET") return;
+
+  // Cache CDN resources (like pdf.js worker) with cache-first
+  if (url.origin !== location.origin) {
+    if (url.hostname === "cdnjs.cloudflare.com") {
+      event.respondWith(
+        caches.match(request).then(
+          (cached) =>
+            cached ||
+            fetch(request).then((response) => {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+              return response;
+            })
+        )
+      );
+    }
+    return;
+  }
 
   // API routes: network-first with cache fallback
   if (url.pathname.startsWith("/api/")) {
