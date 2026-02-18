@@ -4,8 +4,9 @@ const PRECACHE_URLS = [
   "/",
   "/manifest.json",
   "/logo.jpg",
-  "/icons/icon-192x192.png",
-  "/icons/icon-512x512.png",
+  "/icons/icon-192x192.jpg",
+  "/icons/icon-512x512.jpg",
+  "/offline.html",
 ];
 
 // Install: pre-cache shell assets

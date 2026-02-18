@@ -5,10 +5,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AppHeader } from "@/components/app-header"
 import { ImageResizer } from "@/components/image-resizer"
 import { PdfResizer } from "@/components/pdf-resizer"
+import { PwaRegister } from "@/components/pwa-register"
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt"
+import { OfflineIndicator } from "@/components/offline-indicator"
 
 export default function Home() {
   return (
     <div className="min-h-dvh bg-background">
+      <PwaRegister />
+      <OfflineIndicator />
       <AppHeader />
 
       <main className="mx-auto max-w-2xl px-4 py-6">
@@ -122,11 +127,13 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-card py-4">
+      <footer className="border-t border-border bg-card py-4 pb-20">
         <p className="text-center text-xs text-muted-foreground">
           Image & PDF Resizer — All processing happens in your browser. Your files never leave your device.
         </p>
       </footer>
+
+      <PwaInstallPrompt />
     </div>
   )
 }

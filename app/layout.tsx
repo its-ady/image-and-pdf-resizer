@@ -8,9 +8,18 @@ const _spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-spac
 export const metadata: Metadata = {
   title: 'Image & PDF Resizer',
   description: 'Resize your images and PDFs to any size. Fast, free, and works on mobile.',
+  manifest: '/manifest.json',
   icons: {
     icon: '/logo.jpg',
-    apple: '/logo.jpg',
+    apple: '/icons/icon-192x192.jpg',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Image & PDF Resizer',
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
   },
 }
 
