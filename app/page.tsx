@@ -9,6 +9,7 @@ import {
   Shield,
   Smartphone,
   ArrowDownToLine,
+  FileImage,
 } from "lucide-react"
 import { PwaRegister } from "@/components/pwa-register"
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt"
@@ -30,6 +31,14 @@ const tools = [
     icon: FileText,
     color: "bg-destructive/10 text-destructive",
     borderColor: "hover:border-destructive/40",
+  },
+  {
+    title: "Image to PDF",
+    description: "Arrange photos on A4 & convert",
+    href: "/image-to-pdf",
+    icon: FileImage,
+    color: "bg-amber-500/10 text-amber-600",
+    borderColor: "hover:border-amber-500/40",
   },
 ]
 
@@ -94,15 +103,15 @@ export default function Home() {
           <h3 className="font-[family-name:var(--font-heading)] mb-4 text-sm font-bold uppercase tracking-wider text-muted-foreground">
             Choose a Tool
           </h3>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-3">
             {tools.map((tool) => (
               <Link
                 key={tool.href}
                 href={tool.href}
-                className={`group flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-6 shadow-sm transition-all active:scale-[0.97] hover:shadow-md ${tool.borderColor}`}
+                className={`group flex flex-col items-center gap-2.5 rounded-2xl border border-border bg-card p-4 shadow-sm transition-all active:scale-[0.97] hover:shadow-md ${tool.borderColor}`}
               >
-                <div className={`flex size-14 items-center justify-center rounded-xl ${tool.color} transition-transform group-hover:scale-110`}>
-                  <tool.icon className="size-7" />
+                <div className={`flex size-12 items-center justify-center rounded-xl ${tool.color} transition-transform group-hover:scale-110`}>
+                  <tool.icon className="size-6" />
                 </div>
                 <div className="text-center">
                   <p className="font-[family-name:var(--font-heading)] text-sm font-bold text-foreground">
