@@ -1,23 +1,69 @@
 "use client"
 
-import { ImageIcon, FileText, Zap, Shield, Smartphone } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AppHeader } from "@/components/app-header"
-import { ImageResizer } from "@/components/image-resizer"
-import { PdfResizer } from "@/components/pdf-resizer"
+import Image from "next/image"
+import Link from "next/link"
+import {
+  ImageIcon,
+  FileText,
+  Zap,
+  Shield,
+  Smartphone,
+  ArrowDownToLine,
+} from "lucide-react"
 import { PwaRegister } from "@/components/pwa-register"
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt"
 import { OfflineIndicator } from "@/components/offline-indicator"
+
+const tools = [
+  {
+    title: "Image Resizer",
+    description: "Compress JPEG, PNG, WebP & more",
+    href: "/image",
+    icon: ImageIcon,
+    color: "bg-primary/10 text-primary",
+    borderColor: "hover:border-primary/40",
+  },
+  {
+    title: "PDF Resizer",
+    description: "Compress PDF files to any size",
+    href: "/pdf",
+    icon: FileText,
+    color: "bg-destructive/10 text-destructive",
+    borderColor: "hover:border-destructive/40",
+  },
+]
 
 export default function Home() {
   return (
     <div className="min-h-dvh bg-background">
       <PwaRegister />
       <OfflineIndicator />
-      <AppHeader />
+
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
+          <div className="relative size-9 shrink-0 overflow-hidden rounded-lg shadow-sm">
+            <Image
+              src="/logo.jpg"
+              alt="Image & PDF Resizer logo"
+              fill
+              className="object-cover"
+              priority
+            />
+          </div>
+          <div className="flex flex-col">
+            <h1 className="font-[family-name:var(--font-heading)] text-base font-bold leading-tight text-foreground">
+              Image & PDF Resizer
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              Compress files to any size
+            </p>
+          </div>
+        </div>
+      </header>
 
       <main className="mx-auto max-w-2xl px-4 py-6">
-        {/* Hero section */}
+        {/* Hero */}
         <section className="mb-8 text-center">
           <h2 className="font-[family-name:var(--font-heading)] text-2xl font-bold tracking-tight text-foreground sm:text-3xl text-balance">
             Resize Images & PDFs Instantly
@@ -27,8 +73,8 @@ export default function Home() {
           </p>
         </section>
 
-        {/* Features chips */}
-        <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
+        {/* Feature chips */}
+        <div className="mb-8 flex flex-wrap items-center justify-center gap-2">
           <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
             <Zap className="size-3" />
             Lightning Fast
@@ -43,36 +89,36 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Main Tabs */}
-        <Tabs defaultValue="image" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-12 bg-secondary rounded-xl p-1">
-            <TabsTrigger
-              value="image"
-              className="gap-2 rounded-lg text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md"
-            >
-              <ImageIcon className="size-4" />
-              Image
-            </TabsTrigger>
-            <TabsTrigger
-              value="pdf"
-              className="gap-2 rounded-lg text-sm font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md"
-            >
-              <FileText className="size-4" />
-              PDF
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="image" className="mt-6">
-            <ImageResizer />
-          </TabsContent>
-
-          <TabsContent value="pdf" className="mt-6">
-            <PdfResizer />
-          </TabsContent>
-        </Tabs>
+        {/* Tool Cards Grid */}
+        <section className="mb-10">
+          <h3 className="font-[family-name:var(--font-heading)] mb-4 text-sm font-bold uppercase tracking-wider text-muted-foreground">
+            Choose a Tool
+          </h3>
+          <div className="grid grid-cols-2 gap-4">
+            {tools.map((tool) => (
+              <Link
+                key={tool.href}
+                href={tool.href}
+                className={`group flex flex-col items-center gap-3 rounded-2xl border border-border bg-card p-6 shadow-sm transition-all active:scale-[0.97] hover:shadow-md ${tool.borderColor}`}
+              >
+                <div className={`flex size-14 items-center justify-center rounded-xl ${tool.color} transition-transform group-hover:scale-110`}>
+                  <tool.icon className="size-7" />
+                </div>
+                <div className="text-center">
+                  <p className="font-[family-name:var(--font-heading)] text-sm font-bold text-foreground">
+                    {tool.title}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                    {tool.description}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
 
         {/* How it works */}
-        <section className="mt-10 mb-8">
+        <section className="mb-8">
           <h3 className="font-[family-name:var(--font-heading)] mb-4 text-center text-lg font-bold text-foreground">
             How It Works
           </h3>

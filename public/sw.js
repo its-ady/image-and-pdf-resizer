@@ -1,7 +1,9 @@
-const CACHE_NAME = "resizer-v2";
+const CACHE_NAME = "resizer-v3";
 
 const PRECACHE_URLS = [
   "/",
+  "/image",
+  "/pdf",
   "/manifest.json",
   "/logo.jpg",
   "/icons/icon-192x192.jpg",
