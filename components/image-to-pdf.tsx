@@ -12,11 +12,8 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-// A4 dimensions at 72 DPI (PDF points)
 const A4_W = 595
 const A4_H = 842
-
-// Display scale (fit on mobile screens)
 const MAX_CANVAS_W = 380
 
 interface PlacedImage {
@@ -30,19 +27,22 @@ interface PlacedImage {
   h: number
 }
 
+let counter = 0
 function uid() {
-  return Math.random().toString(36).slice(2, 10)
+  return "img-" + ++counter + "-" + Date.now()
 }
 
 export function ImageToPdf() {
   const [images, setImages] = useState<PlacedImage[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [converting, setConverting] = useState(false)
-  const canvasRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Responsive scale
+  // Use ref for display scale to avoid stale closures
   const [displayScale, setDisplayScale] = useState(1)
+  const displayScaleRef = useRef(displayScale)
+  displayScaleRef.current = displayScale
+
   useEffect(() => {
     function calc() {
       const w = Math.min(window.innerWidth - 32, MAX_CANVAS_W)
@@ -57,75 +57,69 @@ export function ImageToPdf() {
   const displayH = A4_H * displayScale
 
   // Add images from file picker
-  const handleFiles = useCallback(
-    (files: FileList | null) => {
-      if (!files) return
-      Array.from(files).forEach((file) => {
-        if (!file.type.startsWith("image/")) return
-        const reader = new FileReader()
-        reader.onload = () => {
-          const img = new window.Image()
-          img.crossOrigin = "anonymous"
-          img.onload = () => {
-            // Fit image within 80% of A4 width, keeping aspect ratio
-            const maxW = A4_W * 0.8
-            const maxH = A4_H * 0.4
-            let w = img.naturalWidth
-            let h = img.naturalHeight
-            if (w > maxW) {
-              h = (h * maxW) / w
-              w = maxW
-            }
-            if (h > maxH) {
-              w = (w * maxH) / h
-              h = maxH
-            }
-
-            const placed: PlacedImage = {
-              id: uid(),
-              src: reader.result as string,
-              naturalW: img.naturalWidth,
-              naturalH: img.naturalHeight,
-              x: (A4_W - w) / 2,
-              y: images.length === 0 ? 40 : 40 + ((images.length * 30) % (A4_H - h - 80)),
-              w,
-              h,
-            }
-            setImages((prev) => [...prev, placed])
-            setSelectedId(placed.id)
+  const handleFiles = useCallback((files: FileList | null) => {
+    if (!files) return
+    const fileArray = Array.from(files)
+    fileArray.forEach((file) => {
+      if (!file.type.startsWith("image/")) return
+      const reader = new FileReader()
+      reader.onload = () => {
+        const imgEl = new window.Image()
+        imgEl.crossOrigin = "anonymous"
+        imgEl.onload = () => {
+          const maxW = A4_W * 0.8
+          const maxH = A4_H * 0.4
+          let w = imgEl.naturalWidth
+          let h = imgEl.naturalHeight
+          if (w > maxW) {
+            h = (h * maxW) / w
+            w = maxW
           }
-          img.src = reader.result as string
+          if (h > maxH) {
+            w = (w * maxH) / h
+            h = maxH
+          }
+
+          const placed: PlacedImage = {
+            id: uid(),
+            src: reader.result as string,
+            naturalW: imgEl.naturalWidth,
+            naturalH: imgEl.naturalHeight,
+            x: (A4_W - w) / 2,
+            y: 40 + (Math.random() * 100),
+            w,
+            h,
+          }
+          setImages((prev) => [...prev, placed])
+          setSelectedId(placed.id)
         }
-        reader.readAsDataURL(file)
-      })
-    },
-    [images.length]
-  )
+        imgEl.src = reader.result as string
+      }
+      reader.readAsDataURL(file)
+    })
+  }, [])
 
   // Auto grid arrangement
   const autoGrid = useCallback(() => {
-    if (images.length === 0) return
+    setImages((prev) => {
+      if (prev.length === 0) return prev
+      const padding = 20
+      const gap = 12
+      const usableW = A4_W - padding * 2
+      const usableH = A4_H - padding * 2
 
-    const padding = 20
-    const gap = 12
-    const usableW = A4_W - padding * 2
-    const usableH = A4_H - padding * 2
+      let cols: number
+      if (prev.length === 1) cols = 1
+      else if (prev.length <= 4) cols = 2
+      else cols = 3
 
-    let cols: number
-    if (images.length === 1) cols = 1
-    else if (images.length <= 4) cols = 2
-    else cols = 3
+      const rows = Math.ceil(prev.length / cols)
+      const cellW = (usableW - gap * (cols - 1)) / cols
+      const cellH = (usableH - gap * (rows - 1)) / rows
 
-    const rows = Math.ceil(images.length / cols)
-    const cellW = (usableW - gap * (cols - 1)) / cols
-    const cellH = (usableH - gap * (rows - 1)) / rows
-
-    setImages((prev) =>
-      prev.map((img, i) => {
+      return prev.map((img, i) => {
         const col = i % cols
         const row = Math.floor(i / cols)
-
-        // Fit image into cell keeping aspect ratio
         const ratio = img.naturalW / img.naturalH
         let w = cellW
         let h = w / ratio
@@ -133,30 +127,26 @@ export function ImageToPdf() {
           h = cellH
           w = h * ratio
         }
-
         const x = padding + col * (cellW + gap) + (cellW - w) / 2
         const y = padding + row * (cellH + gap) + (cellH - h) / 2
-
         return { ...img, x, y, w, h }
       })
-    )
-  }, [images.length])
+    })
+  }, [])
 
-  // Delete selected image
   const deleteSelected = useCallback(() => {
     if (!selectedId) return
     setImages((prev) => prev.filter((img) => img.id !== selectedId))
     setSelectedId(null)
   }, [selectedId])
 
-  // Reset all
   const resetAll = useCallback(() => {
     setImages([])
     setSelectedId(null)
   }, [])
 
-  // Touch / mouse drag and resize
-  const dragInfo = useRef<{
+  // Drag / resize with refs to avoid stale closures
+  const dragRef = useRef<{
     mode: "move" | "resize"
     imgId: string
     startX: number
@@ -165,75 +155,82 @@ export function ImageToPdf() {
     origY: number
     origW: number
     origH: number
+    origRatio: number
   } | null>(null)
 
-  const handlePointerDown = useCallback(
-    (
-      e: React.PointerEvent,
-      imgId: string,
-      mode: "move" | "resize"
-    ) => {
+  const startDrag = useCallback(
+    (e: React.PointerEvent, imgId: string, mode: "move" | "resize") => {
       e.preventDefault()
       e.stopPropagation()
       setSelectedId(imgId)
 
-      const img = images.find((i) => i.id === imgId)
-      if (!img) return
-
-      dragInfo.current = {
-        mode,
-        imgId,
-        startX: e.clientX,
-        startY: e.clientY,
-        origX: img.x,
-        origY: img.y,
-        origW: img.w,
-        origH: img.h,
-      }
-
-      const handleMove = (ev: PointerEvent) => {
-        if (!dragInfo.current) return
-        const dx = (ev.clientX - dragInfo.current.startX) / displayScale
-        const dy = (ev.clientY - dragInfo.current.startY) / displayScale
-
-        setImages((prev) =>
-          prev.map((img) => {
-            if (img.id !== dragInfo.current!.imgId) return img
-            if (dragInfo.current!.mode === "move") {
-              return {
-                ...img,
-                x: Math.max(0, Math.min(A4_W - img.w, dragInfo.current!.origX + dx)),
-                y: Math.max(0, Math.min(A4_H - img.h, dragInfo.current!.origY + dy)),
-              }
-            } else {
-              // resize from corner, keep aspect ratio
-              const ratio = dragInfo.current!.origW / dragInfo.current!.origH
-              let newW = Math.max(30, dragInfo.current!.origW + dx)
-              let newH = newW / ratio
-              // Clamp to page bounds
-              if (img.x + newW > A4_W) newW = A4_W - img.x
-              newH = newW / ratio
-              if (img.y + newH > A4_H) {
-                newH = A4_H - img.y
-                newW = newH * ratio
-              }
-              return { ...img, w: newW, h: newH }
-            }
-          })
-        )
-      }
-
-      const handleUp = () => {
-        dragInfo.current = null
-        window.removeEventListener("pointermove", handleMove)
-        window.removeEventListener("pointerup", handleUp)
-      }
-
-      window.addEventListener("pointermove", handleMove)
-      window.addEventListener("pointerup", handleUp)
+      // Find the image from current state using a functional approach
+      setImages((prev) => {
+        const img = prev.find((i) => i.id === imgId)
+        if (img) {
+          dragRef.current = {
+            mode,
+            imgId,
+            startX: e.clientX,
+            startY: e.clientY,
+            origX: img.x,
+            origY: img.y,
+            origW: img.w,
+            origH: img.h,
+            origRatio: img.w / img.h,
+          }
+        }
+        return prev // No mutation
+      })
     },
-    [images, displayScale]
+    []
   )
+
+  // Global pointer handlers
+  useEffect(() => {
+    const handleMove = (ev: PointerEvent) => {
+      const d = dragRef.current
+      if (!d) return
+
+      const scale = displayScaleRef.current
+      const dx = (ev.clientX - d.startX) / scale
+      const dy = (ev.clientY - d.startY) / scale
+
+      setImages((prev) =>
+        prev.map((img) => {
+          if (img.id !== d.imgId) return img
+          if (d.mode === "move") {
+            const newX = Math.max(0, Math.min(A4_W - img.w, d.origX + dx))
+            const newY = Math.max(0, Math.min(A4_H - img.h, d.origY + dy))
+            return { ...img, x: newX, y: newY }
+          } else {
+            let newW = Math.max(30, d.origW + dx)
+            let newH = newW / d.origRatio
+            if (img.x + newW > A4_W) {
+              newW = A4_W - img.x
+              newH = newW / d.origRatio
+            }
+            if (img.y + newH > A4_H) {
+              newH = A4_H - img.y
+              newW = newH * d.origRatio
+            }
+            return { ...img, w: newW, h: newH }
+          }
+        })
+      )
+    }
+
+    const handleUp = () => {
+      dragRef.current = null
+    }
+
+    window.addEventListener("pointermove", handleMove)
+    window.addEventListener("pointerup", handleUp)
+    return () => {
+      window.removeEventListener("pointermove", handleMove)
+      window.removeEventListener("pointerup", handleUp)
+    }
+  }, [])
 
   // Convert to PDF
   const convertToPdf = useCallback(async () => {
@@ -245,42 +242,31 @@ export function ImageToPdf() {
       const page = pdfDoc.addPage([A4_W, A4_H])
 
       for (const img of images) {
-        const res = await fetch(img.src)
-        const buf = await res.arrayBuffer()
-        const bytes = new Uint8Array(buf)
+        // Convert all images to JPEG via canvas for reliability
+        const canvas = document.createElement("canvas")
+        canvas.width = Math.round(img.naturalW)
+        canvas.height = Math.round(img.naturalH)
+        const ctx = canvas.getContext("2d")
+        if (!ctx) continue
 
-        let pdfImage
-        // Check if PNG
-        if (
-          img.src.startsWith("data:image/png") ||
-          (bytes[0] === 0x89 && bytes[1] === 0x50)
-        ) {
-          pdfImage = await pdfDoc.embedPng(bytes)
-        } else {
-          // For everything else, draw to canvas as JPEG
-          const canvas = document.createElement("canvas")
-          canvas.width = Math.round(img.naturalW)
-          canvas.height = Math.round(img.naturalH)
-          const ctx = canvas.getContext("2d")!
-          const htmlImg = new window.Image()
-          htmlImg.crossOrigin = "anonymous"
-          await new Promise<void>((resolve) => {
-            htmlImg.onload = () => {
-              ctx.drawImage(htmlImg, 0, 0)
-              resolve()
-            }
-            htmlImg.src = img.src
-          })
-          const jpegBlob = await new Promise<Blob>((resolve, reject) =>
-            canvas.toBlob(
-              (b) => (b ? resolve(b) : reject(new Error("toBlob failed"))),
-              "image/jpeg",
-              0.92
-            )
-          )
-          const jpegBytes = new Uint8Array(await jpegBlob.arrayBuffer())
-          pdfImage = await pdfDoc.embedJpg(jpegBytes)
-        }
+        const htmlImg = new window.Image()
+        htmlImg.crossOrigin = "anonymous"
+        await new Promise<void>((resolve) => {
+          htmlImg.onload = () => {
+            ctx.drawImage(htmlImg, 0, 0)
+            resolve()
+          }
+          htmlImg.onerror = () => resolve()
+          htmlImg.src = img.src
+        })
+
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob((b) => resolve(b), "image/jpeg", 0.92)
+        )
+        if (!blob) continue
+
+        const jpgBytes = new Uint8Array(await blob.arrayBuffer())
+        const pdfImage = await pdfDoc.embedJpg(jpgBytes)
 
         // pdf-lib Y axis is from bottom
         page.drawImage(pdfImage, {
@@ -292,8 +278,8 @@ export function ImageToPdf() {
       }
 
       const pdfBytes = await pdfDoc.save()
-      const blob = new Blob([pdfBytes], { type: "application/pdf" })
-      const url = URL.createObjectURL(blob)
+      const pdfBlob = new Blob([pdfBytes], { type: "application/pdf" })
+      const url = URL.createObjectURL(pdfBlob)
       const a = document.createElement("a")
       a.href = url
       a.download = "images-to-pdf.pdf"
@@ -302,16 +288,12 @@ export function ImageToPdf() {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch (err) {
-      console.error("PDF conversion error:", err)
+      console.error("[v0] PDF conversion error:", err)
+      alert("Failed to convert. Please try again.")
     } finally {
       setConverting(false)
     }
   }, [images])
-
-  // Deselect on canvas click
-  const handleCanvasClick = useCallback(() => {
-    setSelectedId(null)
-  }, [])
 
   return (
     <div className="flex flex-col gap-4">
@@ -323,7 +305,11 @@ export function ImageToPdf() {
           accept="image/*"
           multiple
           className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
+          onChange={(e) => {
+            handleFiles(e.target.files)
+            // Reset so same file can be re-selected
+            e.target.value = ""
+          }}
         />
         <Button
           variant="outline"
@@ -369,24 +355,22 @@ export function ImageToPdf() {
       </div>
 
       {/* A4 Canvas */}
-      <div className="flex justify-center">
+      <div className="flex justify-center overflow-hidden">
         <div
-          ref={canvasRef}
           className="relative border-2 border-border bg-white shadow-lg"
           style={{
             width: displayW,
             height: displayH,
             touchAction: "none",
           }}
-          onClick={handleCanvasClick}
+          onClick={() => setSelectedId(null)}
         >
-          {/* Grid lines (subtle) */}
+          {/* Margin guides */}
           <svg
             className="pointer-events-none absolute inset-0"
             width={displayW}
             height={displayH}
           >
-            {/* Margin guides */}
             <rect
               x={20 * displayScale}
               y={20 * displayScale}
@@ -412,8 +396,8 @@ export function ImageToPdf() {
               <div className="flex size-16 items-center justify-center rounded-full bg-muted">
                 <Plus className="size-7 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium">Tap to add photos</p>
-              <p className="text-xs">Place images on this A4 page</p>
+              <p className="text-sm font-medium text-foreground/60">Tap to add photos</p>
+              <p className="text-xs text-foreground/40">Place images on this A4 page</p>
             </button>
           )}
 
@@ -423,7 +407,7 @@ export function ImageToPdf() {
             return (
               <div
                 key={img.id}
-                className={`absolute cursor-grab select-none active:cursor-grabbing ${
+                className={`absolute select-none ${
                   isSelected
                     ? "ring-2 ring-primary ring-offset-1"
                     : "ring-0 hover:ring-1 hover:ring-primary/30"
@@ -435,8 +419,9 @@ export function ImageToPdf() {
                   height: img.h * displayScale,
                   touchAction: "none",
                   zIndex: isSelected ? 50 : 1,
+                  cursor: isSelected ? "grab" : "pointer",
                 }}
-                onPointerDown={(e) => handlePointerDown(e, img.id, "move")}
+                onPointerDown={(e) => startDrag(e, img.id, "move")}
                 onClick={(e) => {
                   e.stopPropagation()
                   setSelectedId(img.id)
@@ -445,28 +430,26 @@ export function ImageToPdf() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={img.src}
-                  alt="Placed"
+                  alt="Placed photo"
                   className="pointer-events-none size-full object-fill"
                   draggable={false}
                 />
 
-                {/* Move indicator */}
+                {/* Move label */}
                 {isSelected && (
                   <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-full rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground shadow">
-                    <Move className="inline size-3 mr-0.5" />
+                    <Move className="mr-0.5 inline size-3" />
                     Drag
                   </div>
                 )}
 
-                {/* Resize handle - bottom right corner */}
+                {/* Resize handle */}
                 {isSelected && (
                   <div
-                    className="absolute -bottom-2 -right-2 z-50 flex size-6 cursor-se-resize items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md"
-                    onPointerDown={(e) =>
-                      handlePointerDown(e, img.id, "resize")
-                    }
+                    className="absolute -bottom-2.5 -right-2.5 z-50 flex size-7 cursor-se-resize items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md"
+                    onPointerDown={(e) => startDrag(e, img.id, "resize")}
                   >
-                    <Maximize2 className="size-3" />
+                    <Maximize2 className="size-3.5" />
                   </div>
                 )}
               </div>
