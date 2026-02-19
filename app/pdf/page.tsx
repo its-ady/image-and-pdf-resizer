@@ -1,9 +1,13 @@
-"use client"
-
+import { Metadata } from "next"
 import { ToolPageHeader } from "@/components/tool-page-header"
 import { PdfResizer } from "@/components/pdf-resizer"
 import { PwaRegister } from "@/components/pwa-register"
 import { OfflineIndicator } from "@/components/offline-indicator"
+
+export const metadata: Metadata = {
+  title: "PDF Resizer - Image & PDF Resizer",
+  description: "Compress PDF files to your desired target size.",
+}
 
 export default function PdfPage() {
   return (

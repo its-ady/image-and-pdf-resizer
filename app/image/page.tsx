@@ -1,9 +1,13 @@
-"use client"
-
+import { Metadata } from "next"
 import { ToolPageHeader } from "@/components/tool-page-header"
 import { ImageResizer } from "@/components/image-resizer"
 import { PwaRegister } from "@/components/pwa-register"
 import { OfflineIndicator } from "@/components/offline-indicator"
+
+export const metadata: Metadata = {
+  title: "Image Resizer - Image & PDF Resizer",
+  description: "Compress JPEG, PNG, WebP, BMP & GIF images to your desired file size.",
+}
 
 export default function ImagePage() {
   return (

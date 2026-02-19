@@ -13,13 +13,32 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 }
 
+const PDFJS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174"
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let pdfjsCache: any = null
+
 async function loadPdfJs() {
-  const pdfjsLib = await import("pdfjs-dist")
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+  if (pdfjsCache) return pdfjsCache
+
+  // Load pdf.js from CDN to avoid bundler issues
+  await new Promise<void>((resolve, reject) => {
+    if ((window as any).pdfjsLib) { resolve(); return }
+    const script = document.createElement("script")
+    script.src = `${PDFJS_CDN}/pdf.min.js`
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error("Failed to load PDF.js"))
+    document.head.appendChild(script)
+  })
+
+  const pdfjsLib = (window as any).pdfjsLib
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN}/pdf.worker.min.js`
+  pdfjsCache = pdfjsLib
   return pdfjsLib
 }
 
 async function renderPageToBlob(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   page: any,
   scaleFactor: number,
   quality: number
