@@ -32,13 +32,22 @@ function uid() {
   return "img-" + ++counter + "-" + Date.now()
 }
 
+function clamp(val: number, min: number, max: number) {
+  if (!Number.isFinite(val)) return min
+  return Math.max(min, Math.min(max, val))
+}
+
 export function ImageToPdf() {
   const [images, setImages] = useState<PlacedImage[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [converting, setConverting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
 
-  // Use ref for display scale to avoid stale closures
+  // Refs for latest state, avoiding stale closures
+  const imagesRef = useRef<PlacedImage[]>(images)
+  imagesRef.current = images
+
   const [displayScale, setDisplayScale] = useState(1)
   const displayScaleRef = useRef(displayScale)
   displayScaleRef.current = displayScale
@@ -56,11 +65,10 @@ export function ImageToPdf() {
   const displayW = A4_W * displayScale
   const displayH = A4_H * displayScale
 
-  // Add images from file picker
+  // File handler
   const handleFiles = useCallback((files: FileList | null) => {
     if (!files) return
-    const fileArray = Array.from(files)
-    fileArray.forEach((file) => {
+    Array.from(files).forEach((file) => {
       if (!file.type.startsWith("image/")) return
       const reader = new FileReader()
       reader.onload = () => {
@@ -79,14 +87,16 @@ export function ImageToPdf() {
             w = (w * maxH) / h
             h = maxH
           }
+          w = Math.max(30, w)
+          h = Math.max(30, h)
 
           const placed: PlacedImage = {
             id: uid(),
             src: reader.result as string,
             naturalW: imgEl.naturalWidth,
             naturalH: imgEl.naturalHeight,
-            x: (A4_W - w) / 2,
-            y: 40 + (Math.random() * 100),
+            x: clamp((A4_W - w) / 2, 0, A4_W - w),
+            y: clamp(40 + Math.random() * 100, 0, A4_H - h),
             w,
             h,
           }
@@ -99,7 +109,7 @@ export function ImageToPdf() {
     })
   }, [])
 
-  // Auto grid arrangement
+  // Auto grid
   const autoGrid = useCallback(() => {
     setImages((prev) => {
       if (prev.length === 0) return prev
@@ -120,16 +130,18 @@ export function ImageToPdf() {
       return prev.map((img, i) => {
         const col = i % cols
         const row = Math.floor(i / cols)
-        const ratio = img.naturalW / img.naturalH
+        const ratio = img.naturalH > 0 ? img.naturalW / img.naturalH : 1
         let w = cellW
         let h = w / ratio
         if (h > cellH) {
           h = cellH
           w = h * ratio
         }
+        w = clamp(w, 30, usableW)
+        h = clamp(h, 30, usableH)
         const x = padding + col * (cellW + gap) + (cellW - w) / 2
         const y = padding + row * (cellH + gap) + (cellH - h) / 2
-        return { ...img, x, y, w, h }
+        return { ...img, x: clamp(x, 0, A4_W - w), y: clamp(y, 0, A4_H - h), w, h }
       })
     })
   }, [])
@@ -145,7 +157,7 @@ export function ImageToPdf() {
     setSelectedId(null)
   }, [])
 
-  // Drag / resize with refs to avoid stale closures
+  // ---- Drag / Resize system using refs only ----
   const dragRef = useRef<{
     mode: "move" | "resize"
     imgId: string
@@ -155,44 +167,43 @@ export function ImageToPdf() {
     origY: number
     origW: number
     origH: number
-    origRatio: number
+    ratio: number
   } | null>(null)
 
-  const startDrag = useCallback(
+  const onPointerDownImage = useCallback(
     (e: React.PointerEvent, imgId: string, mode: "move" | "resize") => {
       e.preventDefault()
       e.stopPropagation()
       setSelectedId(imgId)
 
-      // Find the image from current state using a functional approach
-      setImages((prev) => {
-        const img = prev.find((i) => i.id === imgId)
-        if (img) {
-          dragRef.current = {
-            mode,
-            imgId,
-            startX: e.clientX,
-            startY: e.clientY,
-            origX: img.x,
-            origY: img.y,
-            origW: img.w,
-            origH: img.h,
-            origRatio: img.w / img.h,
-          }
-        }
-        return prev // No mutation
-      })
+      // Read directly from ref to get latest
+      const img = imagesRef.current.find((i) => i.id === imgId)
+      if (!img) return
+
+      const ratio = img.h > 0 ? img.w / img.h : 1
+
+      dragRef.current = {
+        mode,
+        imgId,
+        startX: e.clientX,
+        startY: e.clientY,
+        origX: img.x,
+        origY: img.y,
+        origW: img.w,
+        origH: img.h,
+        ratio: Number.isFinite(ratio) ? ratio : 1,
+      }
     },
     []
   )
 
-  // Global pointer handlers
   useEffect(() => {
-    const handleMove = (ev: PointerEvent) => {
+    function onMove(ev: PointerEvent) {
       const d = dragRef.current
       if (!d) return
 
-      const scale = displayScaleRef.current
+      ev.preventDefault()
+      const scale = displayScaleRef.current || 1
       const dx = (ev.clientX - d.startX) / scale
       const dy = (ev.clientY - d.startY) / scale
 
@@ -200,35 +211,42 @@ export function ImageToPdf() {
         prev.map((img) => {
           if (img.id !== d.imgId) return img
           if (d.mode === "move") {
-            const newX = Math.max(0, Math.min(A4_W - img.w, d.origX + dx))
-            const newY = Math.max(0, Math.min(A4_H - img.h, d.origY + dy))
-            return { ...img, x: newX, y: newY }
+            return {
+              ...img,
+              x: clamp(d.origX + dx, 0, A4_W - img.w),
+              y: clamp(d.origY + dy, 0, A4_H - img.h),
+            }
           } else {
-            let newW = Math.max(30, d.origW + dx)
-            let newH = newW / d.origRatio
+            // Resize: aspect-ratio locked
+            const r = d.ratio || 1
+            let newW = clamp(d.origW + dx, 30, A4_W)
+            let newH = newW / r
+            // Clamp within page
             if (img.x + newW > A4_W) {
               newW = A4_W - img.x
-              newH = newW / d.origRatio
+              newH = newW / r
             }
             if (img.y + newH > A4_H) {
               newH = A4_H - img.y
-              newW = newH * d.origRatio
+              newW = newH * r
             }
+            newW = clamp(newW, 30, A4_W - img.x)
+            newH = clamp(newH, 30, A4_H - img.y)
             return { ...img, w: newW, h: newH }
           }
         })
       )
     }
 
-    const handleUp = () => {
+    function onUp() {
       dragRef.current = null
     }
 
-    window.addEventListener("pointermove", handleMove)
-    window.addEventListener("pointerup", handleUp)
+    window.addEventListener("pointermove", onMove, { passive: false })
+    window.addEventListener("pointerup", onUp)
     return () => {
-      window.removeEventListener("pointermove", handleMove)
-      window.removeEventListener("pointerup", handleUp)
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
     }
   }, [])
 
@@ -242,7 +260,6 @@ export function ImageToPdf() {
       const page = pdfDoc.addPage([A4_W, A4_H])
 
       for (const img of images) {
-        // Convert all images to JPEG via canvas for reliability
         const canvas = document.createElement("canvas")
         canvas.width = Math.round(img.naturalW)
         canvas.height = Math.round(img.naturalH)
@@ -268,7 +285,6 @@ export function ImageToPdf() {
         const jpgBytes = new Uint8Array(await blob.arrayBuffer())
         const pdfImage = await pdfDoc.embedJpg(jpgBytes)
 
-        // pdf-lib Y axis is from bottom
         page.drawImage(pdfImage, {
           x: img.x,
           y: A4_H - img.y - img.h,
@@ -288,7 +304,7 @@ export function ImageToPdf() {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch (err) {
-      console.error("[v0] PDF conversion error:", err)
+      console.error("PDF conversion error:", err)
       alert("Failed to convert. Please try again.")
     } finally {
       setConverting(false)
@@ -307,7 +323,6 @@ export function ImageToPdf() {
           className="hidden"
           onChange={(e) => {
             handleFiles(e.target.files)
-            // Reset so same file can be re-selected
             e.target.value = ""
           }}
         />
@@ -357,13 +372,16 @@ export function ImageToPdf() {
       {/* A4 Canvas */}
       <div className="flex justify-center overflow-hidden">
         <div
+          ref={canvasRef}
           className="relative border-2 border-border bg-white shadow-lg"
           style={{
             width: displayW,
             height: displayH,
             touchAction: "none",
+            userSelect: "none",
+            WebkitUserSelect: "none",
           }}
-          onClick={() => setSelectedId(null)}
+          onPointerDown={() => setSelectedId(null)}
         >
           {/* Margin guides */}
           <svg
@@ -396,14 +414,23 @@ export function ImageToPdf() {
               <div className="flex size-16 items-center justify-center rounded-full bg-muted">
                 <Plus className="size-7 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium text-foreground/60">Tap to add photos</p>
-              <p className="text-xs text-foreground/40">Place images on this A4 page</p>
+              <p className="text-sm font-medium text-foreground/60">
+                Tap to add photos
+              </p>
+              <p className="text-xs text-foreground/40">
+                Place images on this A4 page
+              </p>
             </button>
           )}
 
           {/* Placed images */}
           {images.map((img) => {
             const isSelected = selectedId === img.id
+            const left = clamp(img.x * displayScale, 0, displayW)
+            const top = clamp(img.y * displayScale, 0, displayH)
+            const w = clamp(img.w * displayScale, 10, displayW)
+            const h = clamp(img.h * displayScale, 10, displayH)
+
             return (
               <div
                 key={img.id}
@@ -413,18 +440,17 @@ export function ImageToPdf() {
                     : "ring-0 hover:ring-1 hover:ring-primary/30"
                 }`}
                 style={{
-                  left: img.x * displayScale,
-                  top: img.y * displayScale,
-                  width: img.w * displayScale,
-                  height: img.h * displayScale,
+                  left,
+                  top,
+                  width: w,
+                  height: h,
                   touchAction: "none",
                   zIndex: isSelected ? 50 : 1,
                   cursor: isSelected ? "grab" : "pointer",
                 }}
-                onPointerDown={(e) => startDrag(e, img.id, "move")}
-                onClick={(e) => {
+                onPointerDown={(e) => {
                   e.stopPropagation()
-                  setSelectedId(img.id)
+                  onPointerDownImage(e, img.id, "move")
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -446,8 +472,11 @@ export function ImageToPdf() {
                 {/* Resize handle */}
                 {isSelected && (
                   <div
-                    className="absolute -bottom-2.5 -right-2.5 z-50 flex size-7 cursor-se-resize items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md"
-                    onPointerDown={(e) => startDrag(e, img.id, "resize")}
+                    className="absolute -bottom-2.5 -right-2.5 z-[60] flex size-7 cursor-se-resize items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md"
+                    onPointerDown={(e) => {
+                      e.stopPropagation()
+                      onPointerDownImage(e, img.id, "resize")
+                    }}
                   >
                     <Maximize2 className="size-3.5" />
                   </div>
@@ -462,7 +491,7 @@ export function ImageToPdf() {
       <p className="text-center text-xs text-muted-foreground leading-relaxed">
         {images.length === 0
           ? "Add photos from your gallery to arrange on the A4 page"
-          : `${images.length} photo${images.length > 1 ? "s" : ""} placed. Tap to select, drag to move, corner handle to resize.`}
+          : `${images.length} photo${images.length > 1 ? "s" : ""} placed. Tap to select, drag to move, corner to resize.`}
       </p>
 
       {/* Convert button */}
